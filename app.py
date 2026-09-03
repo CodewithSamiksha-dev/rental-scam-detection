@@ -1,0 +1,240 @@
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import pickle
+
+with open("rental_scam_model.pkl", "rb") as file:
+    model = pickle.load(file)
+
+with open("label_encoders.pkl", "rb") as file:
+    label_encoders = pickle.load(file)
+
+features = [
+    "LISTING_KIND",
+    "LISTING_CITY",
+    "LISTING_PRICE",
+    "LOGIN_COUNTRY_CODE",
+    "LISTING_COUNTRY_CODE",
+    "LISTING_REGISTRATION_POSSIBLE",
+    "ADVERTISER_COMPLETENESS_SCORE",
+    "MANAGED_ACCOUNT",
+    "HAS_PROFILE_PIC",
+    "BROWSER",
+    "OS",
+    "IS_ARCHIVED",
+    "PRICE_LOG",
+    "LOGIN_COUNTRY_MISSING"
+]
+
+categorical_columns = [
+    "LISTING_CITY",
+    "BROWSER",
+    "OS",
+    "LOGIN_COUNTRY_CODE",
+    "LISTING_COUNTRY_CODE"
+]
+
+st.set_page_config(
+    page_title="Rental Scam Detector",
+    page_icon="🏠",
+    layout="wide"
+)
+
+st.markdown("""
+<style>
+.main-title {
+    font-size: 42px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    text-align: center;
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+.result-box {
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    margin-top: 25px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="main-title">🏠 Rental Scam Detector</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="subtitle">AI-powered rental listing risk assessment using Machine Learning</div>',
+    unsafe_allow_html=True
+)
+
+st.divider()
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("🏡 Property Details")
+
+    listing_kind = st.number_input(
+        "Listing Kind",
+        min_value=0,
+        value=1
+    )
+
+    listing_city = st.text_input(
+        "City",
+        "London"
+    )
+
+    listing_price = st.number_input(
+        "Monthly Rent",
+        min_value=0.0,
+        value=800.0
+    )
+
+    listing_country_code = st.text_input(
+        "Listing Country Code",
+        "GB"
+    )
+
+    is_archived = st.selectbox(
+        "Is Archived?",
+        [0, 1]
+    )
+
+with col2:
+    st.subheader("👤 Advertiser Details")
+
+    login_country_code = st.text_input(
+        "Login Country Code",
+        "GB"
+    )
+
+    advertiser_score = st.number_input(
+        "Advertiser Completeness Score",
+        min_value=0.0,
+        value=50.0
+    )
+
+    managed_account = st.selectbox(
+        "Managed Account?",
+        [0, 1]
+    )
+
+    has_profile_pic = st.selectbox(
+        "Profile Picture Available?",
+        [0, 1]
+    )
+
+    registration_possible = st.selectbox(
+        "Registration Possible?",
+        [0, 1]
+    )
+
+st.divider()
+
+col3, col4 = st.columns(2)
+
+with col3:
+    browser = st.text_input(
+        "🌐 Browser",
+        "Chrome"
+    )
+
+with col4:
+    os = st.text_input(
+        "💻 Operating System",
+        "Windows"
+    )
+
+st.write("")
+
+check_button = st.button(
+    "🔍 CHECK LISTING",
+    use_container_width=True
+)
+
+if check_button:
+
+    input_data = pd.DataFrame([{
+        "LISTING_KIND": listing_kind,
+        "LISTING_CITY": listing_city,
+        "LISTING_PRICE": listing_price,
+        "LOGIN_COUNTRY_CODE": login_country_code,
+        "LISTING_COUNTRY_CODE": listing_country_code,
+        "LISTING_REGISTRATION_POSSIBLE": registration_possible,
+        "ADVERTISER_COMPLETENESS_SCORE": advertiser_score,
+        "MANAGED_ACCOUNT": managed_account,
+        "HAS_PROFILE_PIC": has_profile_pic,
+        "BROWSER": browser,
+        "OS": os,
+        "IS_ARCHIVED": is_archived
+    }])
+
+    input_data["PRICE_LOG"] = np.log1p(
+        input_data["LISTING_PRICE"]
+    )
+
+    input_data["LOGIN_COUNTRY_MISSING"] = (
+        input_data["LOGIN_COUNTRY_CODE"].isnull().astype(int)
+    )
+
+    for col in categorical_columns:
+        input_data[col] = (
+            input_data[col]
+            .fillna("Unknown")
+            .astype(str)
+        )
+
+        le = label_encoders[col]
+        value = input_data[col].iloc[0]
+
+        if value in le.classes_:
+            input_data[col] = le.transform([value])
+        else:
+            input_data[col] = 0
+
+    input_data = input_data[features]
+
+    prediction = model.predict(input_data)[0]
+    probability = model.predict_proba(input_data)[0][1]
+
+    st.divider()
+    st.subheader("📊 Detection Result")
+
+    result_col1, result_col2 = st.columns(2)
+
+    with result_col1:
+        if prediction == 1:
+            st.error("🚨 POTENTIAL SCAM")
+        else:
+            st.success("✅ LIKELY LEGITIMATE")
+
+    with result_col2:
+        st.metric(
+            "Scam Probability",
+            f"{probability * 100:.2f}%"
+        )
+
+    if probability >= 0.70:
+        risk = "HIGH RISK"
+    elif probability >= 0.40:
+        risk = "MEDIUM RISK"
+    else:
+        risk = "LOW RISK"
+
+    st.info(f"🛡️ Risk Level: **{risk}**")
+
+    st.progress(float(probability))
+
+    st.caption(
+        "This prediction is generated by a machine learning model "
+        "and should be used as a screening indicator, not as a guarantee."
+    )
