@@ -31,6 +31,10 @@ The system uses a Random Forest classification model and provides predictions th
 | Version Control | GitHub |
 | Development Environment | Google Colab |
 
+## Live Demo
+
+[Open Rental Scam Detection System](https://rental-scam-detection-rzjr8jhz3vh26gbblb8wj8.streamlit.app/)
+
 ## Data Science Workflow
 
 ```text
